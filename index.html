@@ -184,6 +184,24 @@
     .filter-bar{padding:12px}
     #notif-panel{width:240px}
   }
+
+  /* ── ADDED: Copy-Ticket-ID button ── */
+  .ticket-id-wrap { display: inline-flex; align-items: center; gap: 5px; }
+  .copy-ticket-btn {
+    background: none;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    color: #64748B;
+    cursor: pointer;
+    padding: 1px 5px;
+    font-size: 12px;
+    line-height: 1.4;
+    transition: all .15s;
+    flex-shrink: 0;
+  }
+  .copy-ticket-btn:hover { background: #334155; color: #CBD5E1; border-color: #475569; }
+  .copy-ticket-btn.copied { background: #0D9488; border-color: #0D9488; color: #fff; }
+  /* ── END ADDED ── */
 </style>
 </head>
 <body>
@@ -410,7 +428,12 @@ function renderTable(){
       const val=(row[ci]??'').toString();
       html+=`<td>`;
       if(type==='ticket'){
-        html+=`<span class="ticket-id">${val||'—'}</span>`;
+        /* ADDED: wrap ticket chip + inline copy button */
+        const safeVal = escHtml(val||'');
+        html+=`<span class="ticket-id-wrap">` +
+              `<span class="ticket-id">${safeVal||'—'}</span>` +
+              (val ? `<button class="copy-ticket-btn" onclick="copyTicketId(this,'${safeVal}')" title="Copy Ticket ID">📋</button>` : '') +
+              `</span>`;
       } else if(type==='status'){
         const cls=STATUS_CLASS[val]||'followup';
         html+=`<select class="status-select ${cls}" onchange="onCellChange(${realIdx},${ci},this.value,this)">`; 
@@ -717,7 +740,12 @@ function buildNotifications() {
           '<div style="flex:1;min-width:0">' +
             '<div class="notif-title">' + (a.isOverdue ? '⚠ Overdue Followup' : (a.isToday ? '📅 Followup Today' : '📅 Followup Tomorrow')) + '</div>' +
             '<div class="notif-name">' + escHtml(a.name) + '</div>' +
-            '<div class="notif-time">Ticket: ' + escHtml(a.ticketId) + (a.tStr ? ' · ' + a.tStr : '') + '</div>' +
+            /* ADDED: copy button alongside ticket id in drawer card */
+            '<div class="notif-time" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">' +
+              'Ticket: <span>' + escHtml(a.ticketId) + '</span>' +
+              (a.ticketId ? '<button class="copy-ticket-btn" onclick="copyTicketId(this,\'' + escHtml(a.ticketId).replace(/'/g,"\\'") + '\')" title="Copy Ticket ID">📋</button>' : '') +
+              (a.tStr ? '<span> · ' + a.tStr + '</span>' : '') +
+            '</div>' +
             '<span class="notif-badge ' + (a.isOverdue ? 'overdue' : '') + '">' + a.hoursMsg + '</span>' +
           '</div>' +
         '</div>' +
@@ -852,6 +880,41 @@ function showToast(msg,type='success'){
   area.appendChild(t);
   setTimeout(()=>t.remove(),4000);
 }
+
+// ── ADDED: Copy Ticket ID to clipboard ──
+function copyTicketId(btn, ticketId) {
+  if (!ticketId) return;
+  // Use modern Clipboard API with fallback for older/mobile browsers
+  const doFeedback = () => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋';
+      btn.classList.remove('copied');
+    }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(ticketId).then(doFeedback).catch(() => {
+      // Fallback if clipboard permission denied
+      legacyCopy(ticketId) && doFeedback();
+    });
+  } else {
+    legacyCopy(ticketId) && doFeedback();
+  }
+}
+function legacyCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch(e) { return false; }
+}
+// ── END ADDED ──
 
 loadData();
 setInterval(()=>{ if(!changedRows.size) loadData(); }, 120000);
