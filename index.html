@@ -76,6 +76,8 @@
   .cell-input{background:#0F172A;border:1px solid #334155;border-radius:6px;color:#E2E8F0;padding:5px 8px;font-size:13px;font-family:inherit;width:100%;min-width:130px;transition:border-color .2s}
   .cell-input:focus{outline:none;border-color:#0D9488;box-shadow:0 0 0 2px rgba(13,148,136,.2)}
   input[type="date"].cell-input,input[type="time"].cell-input{min-width:120px}
+  /* ── ADDED: narrow input override for compact numeric columns (REM Year / Days More) — still fits at least 2 digits comfortably ── */
+  .cell-input-narrow{min-width:56px !important;width:56px;text-align:center;padding-left:4px;padding-right:4px}
   
   /* STATUS DROPDOWN */
   .status-select{border:none;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;appearance:none;-webkit-appearance:none;text-align:center;outline:none;transition:all .2s}
@@ -83,16 +85,22 @@
   .status-select.unsuccess{background:#DC2626;color:#ffffff;border:2px solid #B91C1C}
   .status-select.followup{background:#EAB308;color:#1C1917;border:2px solid #CA8A04}
   .status-select.noanswer{background:#FFECD2;color:#C2185B;border:2px solid #F8BBD0}
+  .status-select.notstarted{background:#64748B;color:#ffffff;border:2px solid #475569}
+  .status-select.answered{background:#0EA5E9;color:#ffffff;border:2px solid #0284C7}
   
   /* ROW status color tinting */
   tr.row-success td{background:rgba(22,163,74,.10) !important}
   tr.row-unsuccess td{background:rgba(220,38,38,.10) !important}
   tr.row-followup td{background:rgba(234,179,8,.08) !important}
   tr.row-noanswer td{background:rgba(255,236,210,.07) !important}
+  tr.row-notstarted td{background:rgba(100,116,139,.08) !important}
+  tr.row-answered td{background:rgba(14,165,233,.08) !important}
   tr.row-success:hover td{background:rgba(22,163,74,.18) !important}
   tr.row-unsuccess:hover td{background:rgba(220,38,38,.18) !important}
   tr.row-followup:hover td{background:rgba(234,179,8,.15) !important}
   tr.row-noanswer:hover td{background:rgba(194,24,91,.10) !important}
+  tr.row-notstarted:hover td{background:rgba(100,116,139,.16) !important}
+  tr.row-answered:hover td{background:rgba(14,165,233,.16) !important}
   
   /* TICKET ID CHIP */
   .ticket-id{background:#0F172A;border:1px solid #334155;border-radius:6px;padding:3px 8px;font-size:12px;font-family:'Courier New',monospace;color:#7DD3FC;white-space:nowrap}
@@ -107,6 +115,14 @@
   .bell-btn:hover { background: #334155; color: #F8FAFC; border-color: #475569; }
   .bell-count { position: absolute; top: -6px; right: -6px; background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid #0F172A; animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.75;transform:scale(1.15)} }
+
+  /* ── ADDED: system notification permission toggle ── */
+  .notif-perm-btn{border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;border:1px solid #334155;background:transparent;color:#94A3B8;display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .notif-perm-btn:hover{border-color:#0D9488;color:#0D9488}
+  .notif-perm-btn.granted{background:rgba(13,148,136,.15);border-color:#0D9488;color:#5EEAD4}
+  .notif-perm-btn.denied{background:rgba(220,38,38,.12);border-color:#DC2626;color:#FCA5A5;cursor:not-allowed}
+  .notif-perm-btn.unsupported{display:none}
+  /* ── END ADDED ── */
 
   /* =============================================
      NOTIFICATION DRAWER PANEL
@@ -202,6 +218,24 @@
   .copy-ticket-btn:hover { background: #334155; color: #CBD5E1; border-color: #475569; }
   .copy-ticket-btn.copied { background: #0D9488; border-color: #0D9488; color: #fff; }
   /* ── END ADDED ── */
+
+  /* ── ADDED: Open-link button (for URL/Link columns) ── */
+  .link-cell-wrap { display: flex; align-items: center; gap: 5px; }
+  .open-link-btn {
+    background: #1E3A5F;
+    border: 1px solid #3B82F6;
+    border-radius: 5px;
+    color: #93C5FD;
+    cursor: pointer;
+    padding: 4px 7px;
+    font-size: 12px;
+    line-height: 1;
+    transition: all .15s;
+    flex-shrink: 0;
+  }
+  .open-link-btn:hover { background: #2563EB; border-color: #2563EB; color: #fff; }
+  .open-link-btn:disabled { opacity:.35; cursor:not-allowed; }
+  /* ── END ADDED ── */
 </style>
 </head>
 <body>
@@ -214,6 +248,10 @@
   </div>
   <div class="topbar-right">
     <div class="sync-status" id="sync-status"><span class="sync-dot"></span>Connected</div>
+    <!-- ADDED: system notification permission toggle -->
+    <button class="notif-perm-btn" id="notif-perm-btn" onclick="requestSystemNotifPermission()" title="Enable system notifications">
+      🔕 Enable Alerts
+    </button>
     <!-- Bell button — opens notification drawer -->
     <button class="bell-btn" id="bell-btn" onclick="toggleNotifPanel()" title="Follow-up Notifications">
       🔔
@@ -239,6 +277,8 @@
     <label>Filter by status:</label>
     <div class="filter-btns">
       <button class="filter-btn all active" data-filter="all" onclick="applyFilter('all',this)">All</button>
+      <button class="filter-btn" data-filter="Not Started" onclick="applyFilter('Not Started',this)">⚪ Not Started</button>
+      <button class="filter-btn" data-filter="Answered" onclick="applyFilter('Answered',this)">📞 Answered</button>
       <button class="filter-btn" data-filter="Success" onclick="applyFilter('Success',this)">✅ Success</button>
       <button class="filter-btn" data-filter="Unsuccess" onclick="applyFilter('Unsuccess',this)">❌ Unsuccess</button>
       <button class="filter-btn" data-filter="Follow up" onclick="applyFilter('Follow up',this)">🔁 Follow Up</button>
@@ -313,8 +353,91 @@ let currentFilter = 'all';
 let dismissedNotifs = new Set();
 let searchQuery = '';
 
-const STATUS_OPTIONS = ['Success','Unsuccess','Follow up','No answer'];
+// ── ADDED: OS / Chrome system notifications ──
+function updateNotifPermBtn(){
+  const btn = document.getElementById('notif-perm-btn');
+  if(!btn) return;
+  if(!('Notification' in window)){
+    btn.className = 'notif-perm-btn unsupported';
+    return;
+  }
+  const perm = Notification.permission;
+  btn.classList.remove('granted','denied');
+  if(perm === 'granted'){
+    btn.classList.add('granted');
+    btn.innerHTML = '🔔 Alerts On';
+    btn.title = 'System notifications are enabled';
+  } else if(perm === 'denied'){
+    btn.classList.add('denied');
+    btn.innerHTML = '🔕 Blocked';
+    btn.title = 'Notifications blocked — enable them in your browser site settings';
+  } else {
+    btn.innerHTML = '🔕 Enable Alerts';
+    btn.title = 'Click to allow system notifications for follow-ups';
+  }
+}
+
+function requestSystemNotifPermission(){
+  if(!('Notification' in window)){
+    showToast('This browser does not support system notifications','error');
+    return;
+  }
+  if(Notification.permission === 'granted'){
+    updateNotifPermBtn();
+    showToast('System notifications are already enabled','success');
+    return;
+  }
+  if(Notification.permission === 'denied'){
+    updateNotifPermBtn();
+    showToast('Notifications are blocked — enable them in your browser\'s site settings','error');
+    return;
+  }
+  Notification.requestPermission().then(perm=>{
+    updateNotifPermBtn();
+    if(perm === 'granted'){
+      showToast('System notifications enabled','success');
+      try{
+        const n = new Notification('LeadM Alerts Enabled', { body: 'You\'ll get follow-up reminders as system notifications.', tag: 'leadm-enabled' });
+        setTimeout(()=>n.close(), 4000);
+      }catch(e){}
+    }
+  });
+}
+
+// Fires a native OS/Chrome notification for a follow-up alert.
+// Returns true if the system notification was successfully shown.
+function fireSystemNotification(a){
+  if(!('Notification' in window) || Notification.permission !== 'granted') return false;
+  try{
+    const title = a.isOverdue ? '⚠ Overdue Follow-up' : (a.isToday ? '📅 Follow-up Today' : '📅 Follow-up Tomorrow');
+    const bodyLines = [a.name];
+    if(a.ticketId) bodyLines.push('Ticket: ' + a.ticketId);
+    if(a.tStr) bodyLines.push('Time: ' + a.tStr);
+    bodyLines.push(a.hoursMsg);
+    const n = new Notification(title, {
+      body: bodyLines.join('\n'),
+      tag: 'leadm-followup-' + a.ticketId,
+      renotify: false,
+      requireInteraction: a.isOverdue
+    });
+    n.onclick = function(){
+      window.focus();
+      scrollToRowAndClose(a.ri);
+      n.close();
+    };
+    return true;
+  }catch(e){
+    console.error('[LeadM] System notification failed:', e);
+    return false;
+  }
+}
+
+// ── END ADDED ──
+
+const STATUS_OPTIONS = ['Not Started','Answered','Success','Unsuccess','Follow up','No answer'];
 const STATUS_CLASS = {
+  'Not Started':'notstarted',
+  'Answered':'answered',
   'Success':'success',
   'Unsuccess':'unsuccess',
   'Follow up':'followup',
@@ -325,6 +448,7 @@ const DATE_COL_KEYWORDS   = ['follow up date','follow-up date','next follow','da
 const TIME_COL_KEYWORDS   = ['follow up time','follow-up time','follow time','time'];
 const STATUS_COL_KEYWORDS = ['ticket status','status'];
 const TICKET_COL_KEYWORDS = ['ticket id','ticket no','ticket#','ticket'];
+const LINK_COL_KEYWORDS   = ['link','url','website'];
 const READONLY_KEYWORDS   = [];
 
 function colType(h){
@@ -332,10 +456,38 @@ function colType(h){
   // Check status FIRST before time (since "ticket status" would otherwise match "time" via substring)
   if(STATUS_COL_KEYWORDS.some(k=>l===k||l.includes(k))) return 'status';
   if(TICKET_COL_KEYWORDS.some(k=>l===k||l.includes(k))) return 'ticket';
+  if(LINK_COL_KEYWORDS.some(k=>l.includes(k))) return 'link';
   if(DATE_COL_KEYWORDS.some(k=>l.includes(k)))   return 'date';
   if(TIME_COL_KEYWORDS.some(k=>l.includes(k)))   return 'time';
   return 'text';
 }
+
+// ── ADDED: per-column width control so no column is too small, ──
+// with specific overrides for Decedent Name (wide), REM Year (small),
+// Days More (small) and Link columns.
+// isNarrowCol: columns that are intentionally compact but must still
+// comfortably fit at least a 2-digit value (e.g. "12", "99").
+function isNarrowCol(h){
+  const l = h.toLowerCase().trim();
+  return l.includes('rem year') || l.includes('rem. year') || l.includes('remyear') ||
+         l.includes('days more') || l.includes('days-more') || l.includes('daysmore') ||
+         l==='no' || l==='no.' || l==='sl no' || l==='sl.no' || l==='s.no' || l==='sr no' ||
+         l==='sr.no' || l.includes('serial no') || l.includes('slno') || l.includes('srno');
+}
+function colWidth(h){
+  const l = h.toLowerCase();
+  if(l.includes('decedent') || l.includes('lead name') || l.includes('customer name') || l==='name') return 320;
+  // Narrow numeric columns: small, but wide enough for a 2-digit value + padding + border
+  if(isNarrowCol(h)) return 84;
+  const t = colType(h);
+  if(t==='link') return 150;
+  if(t==='ticket') return 120;
+  if(t==='status') return 150;
+  if(t==='date') return 130;
+  if(t==='time') return 100;
+  return 140; // default — never small
+}
+// ── END ADDED ──
 
 async function loadData(){
   try{
@@ -414,7 +566,7 @@ function renderTable(){
   }
 
   let html=`<table><thead><tr>`;
-  headers.forEach(h=>{ html+=`<th>${h}</th>`; });
+  headers.forEach(h=>{ html+=`<th style="min-width:${colWidth(h)}px">${h}</th>`; });
   html+=`</tr></thead><tbody>`;
 
   rows.forEach((row,ri)=>{
@@ -426,7 +578,8 @@ function renderTable(){
     headers.forEach((h,ci)=>{
       const type=colType(h);
       const val=(row[ci]??'').toString();
-      html+=`<td>`;
+      const w = colWidth(h);
+      html+=`<td style="min-width:${w}px">`;
       if(type==='ticket'){
         /* ADDED: wrap ticket chip + inline copy button */
         const safeVal = escHtml(val||'');
@@ -435,18 +588,26 @@ function renderTable(){
               (val ? `<button class="copy-ticket-btn" onclick="copyTicketId(this,'${safeVal}')" title="Copy Ticket ID">📋</button>` : '') +
               `</span>`;
       } else if(type==='status'){
-        const cls=STATUS_CLASS[val]||'followup';
+        const cls=STATUS_CLASS[val]||'notstarted';
         html+=`<select class="status-select ${cls}" onchange="onCellChange(${realIdx},${ci},this.value,this)">`; 
         STATUS_OPTIONS.forEach(s=>{
           html+=`<option value="${s}" ${val===s?'selected':''}>${s}</option>`;
         });
         html+=`</select>`;
+      } else if(type==='link'){
+        /* ADDED: link column — text input + small open button */
+        const safeVal = escHtml(val);
+        html+=`<span class="link-cell-wrap">` +
+              `<input type="text" class="cell-input" style="min-width:${Math.max(w-40,70)}px" value="${safeVal}" placeholder="URL" onchange="onCellChange(${realIdx},${ci},this.value)">` +
+              `<button class="open-link-btn" ${val?'':'disabled'} onclick="openLink('${safeVal.replace(/'/g,"&#39;")}')" title="Open link">🔗</button>` +
+              `</span>`;
       } else if(type==='date'){
         html+=`<input type="date" class="cell-input" value="${toDateInput(val)}" onchange="onCellChange(${realIdx},${ci},this.value)">`;
       } else if(type==='time'){
         html+=`<input type="time" class="cell-input" value="${toTimeInput(val)}" onchange="onCellChange(${realIdx},${ci},this.value)">`;
       } else {
-        html+=`<input type="text" class="cell-input" value="${escHtml(val)}" onchange="onCellChange(${realIdx},${ci},this.value)">`;
+        const narrowCls = isNarrowCol(h) ? ' cell-input-narrow' : '';
+        html+=`<input type="text" class="cell-input${narrowCls}" value="${escHtml(val)}" onchange="onCellChange(${realIdx},${ci},this.value)">`;
       }
       html+=`</td>`;
     });
@@ -456,6 +617,14 @@ function renderTable(){
   html+=`</tbody></table>`;
   document.getElementById('table-area').innerHTML=html;
 }
+
+// ── ADDED: open a link column value in a new tab ──
+function openLink(url){
+  if(!url) return;
+  const u = /^https?:\/\//i.test(url) ? url : 'https://' + url;
+  window.open(u, '_blank', 'noopener');
+}
+// ── END ADDED ──
 
 function toDateInput(v){
   if(!v) return '';
@@ -526,7 +695,7 @@ function onCellChange(rowIdx, colIdx, value, el){
   const tr=document.getElementById(`row-${rowIdx}`);
   if(tr) tr.classList.add('changed');
   if(el && el.tagName==='SELECT'){
-    const cls=STATUS_CLASS[value]||'followup';
+    const cls=STATUS_CLASS[value]||'notstarted';
     el.className=`status-select ${cls}`;
     // Update row background class
     if(tr){
@@ -771,6 +940,11 @@ function showPopupAlerts(alerts) {
     if (_shownPopups.has(a.ticketId)) return; // already shown this session
     _shownPopups.add(a.ticketId);
 
+    // Prefer a real Chrome/OS system notification. Only fall back to the
+    // in-page popup card if system notifications are unsupported or blocked.
+    const sentAsSystemNotif = fireSystemNotification(a);
+    if (sentAsSystemNotif) return;
+
     const el = document.createElement('div');
     el.className = 'popup-notif' + (a.isOverdue ? ' overdue' : '');
     el.id = 'popup-' + a.ri;
@@ -917,6 +1091,7 @@ function legacyCopy(text) {
 // ── END ADDED ──
 
 loadData();
+updateNotifPermBtn();
 setInterval(()=>{ if(!changedRows.size) loadData(); }, 120000);
 </script>
 </body>
